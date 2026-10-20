@@ -1,0 +1,139 @@
+! ============================================================
+! SW1 - Cisco Catalyst 2960 access-switch configuration
+! Small Office Network Simulation | Cameron Noce
+! Lab-only credentials; change them before use outside Packet Tracer.
+! Fa0/1 -> R1 G0/0 trunk; Fa0/2 -> Server0; Fa0/3-6 -> PCs 1-4
+! ============================================================
+!
+enable
+configure terminal
+hostname SW1
+no ip domain-lookup
+service password-encryption
+enable secret N3tLab-Only-2026
+banner motd #Authorized lab users only. Disconnect if unauthorized.#
+!
+! VLANs
+vlan 10
+ name STAFF
+exit
+vlan 20
+ name IT_SERVICES
+exit
+vlan 30
+ name GUEST
+exit
+vlan 999
+ name UNUSED_PARKING
+exit
+!
+! Management SVI on IT VLAN
+interface Vlan20
+ description Switch management interface
+ ip address 192.168.20.2 255.255.255.0
+ no shutdown
+exit
+ip default-gateway 192.168.20.1
+!
+! Uplink to router: 802.1Q trunk
+interface FastEthernet0/1
+ description TRUNK_TO_R1_G0/0
+ switchport mode trunk
+ switchport trunk allowed vlan 10,20,30
+ no shutdown
+!
+! Server0: static address 192.168.20.10/24 on VLAN 20
+interface FastEthernet0/2
+ description SERVER0_HTTP_DNS
+ switchport mode access
+ switchport access vlan 20
+ spanning-tree portfast
+ switchport port-security
+ switchport port-security maximum 1
+ switchport port-security mac-address sticky
+ switchport port-security violation restrict
+ no shutdown
+!
+! PC1 and PC2 - Staff VLAN 10
+interface FastEthernet0/3
+ description PC1_STAFF
+ switchport mode access
+ switchport access vlan 10
+ spanning-tree portfast
+ switchport port-security
+ switchport port-security maximum 1
+ switchport port-security mac-address sticky
+ switchport port-security violation restrict
+ no shutdown
+!
+interface FastEthernet0/4
+ description PC2_STAFF
+ switchport mode access
+ switchport access vlan 10
+ spanning-tree portfast
+ switchport port-security
+ switchport port-security maximum 1
+ switchport port-security mac-address sticky
+ switchport port-security violation restrict
+ no shutdown
+!
+! PC3 - IT VLAN 20
+interface FastEthernet0/5
+ description PC3_IT
+ switchport mode access
+ switchport access vlan 20
+ spanning-tree portfast
+ switchport port-security
+ switchport port-security maximum 1
+ switchport port-security mac-address sticky
+ switchport port-security violation restrict
+ no shutdown
+!
+! PC4 - Guest VLAN 30
+interface FastEthernet0/6
+ description PC4_GUEST
+ switchport mode access
+ switchport access vlan 30
+ spanning-tree portfast
+ switchport port-security
+ switchport port-security maximum 1
+ switchport port-security mac-address sticky
+ switchport port-security violation restrict
+ no shutdown
+!
+! Shut down unused FastEthernet ports and place them in parking VLAN 999
+interface range FastEthernet0/7-24
+ description UNUSED_SHUTDOWN_PORT
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+!
+! Shut down unused Gigabit uplink ports
+interface range GigabitEthernet0/1-2
+ description UNUSED_SHUTDOWN_PORT
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+!
+! SSH management - no Telnet
+ip domain-name office.local
+username netadmin privilege 15 secret N3tLab-Only-2026
+crypto key generate rsa modulus 1024
+ip ssh version 2
+ip ssh time-out 60
+ip ssh authentication-retries 3
+!
+line console 0
+ logging synchronous
+ exec-timeout 10 0
+ password LabConsole2026
+ login
+!
+line vty 0 15
+ logging synchronous
+ exec-timeout 10 0
+ login local
+ transport input ssh
+!
+end
+write memory

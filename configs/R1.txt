@@ -1,0 +1,98 @@
+! ============================================================
+! R1 - Cisco 2911 router-on-a-stick configuration
+! Small Office Network Simulation | Cameron Noce
+! Lab-only credentials; change them before use outside Packet Tracer.
+! Physical link: R1 GigabitEthernet0/0 <-> SW1 FastEthernet0/1
+! ============================================================
+!
+enable
+configure terminal
+hostname R1
+no ip domain-lookup
+service password-encryption
+enable secret N3tLab-Only-2026
+banner motd #Authorized lab users only. Disconnect if unauthorized.#
+!
+! SSH identity and local administrator
+ip domain-name office.local
+username netadmin privilege 15 secret N3tLab-Only-2026
+crypto key generate rsa modulus 1024
+ip ssh version 2
+ip ssh time-out 60
+ip ssh authentication-retries 3
+!
+! Router-on-a-stick trunk to SW1
+interface GigabitEthernet0/0
+ description 802.1Q trunk to SW1 Fa0/1
+ no ip address
+ no shutdown
+!
+interface GigabitEthernet0/0.10
+ description VLAN 10 - Staff
+ encapsulation dot1Q 10
+ ip address 192.168.10.1 255.255.255.0
+!
+interface GigabitEthernet0/0.20
+ description VLAN 20 - IT and Services
+ encapsulation dot1Q 20
+ ip address 192.168.20.1 255.255.255.0
+!
+interface GigabitEthernet0/0.30
+ description VLAN 30 - Guest
+ encapsulation dot1Q 30
+ ip address 192.168.30.1 255.255.255.0
+ ip access-group GUEST-IN in
+!
+! Reserve low addresses for gateways, management, servers, and static devices
+ip dhcp excluded-address 192.168.10.1 192.168.10.49
+ip dhcp excluded-address 192.168.10.201 192.168.10.254
+ip dhcp excluded-address 192.168.20.1 192.168.20.49
+ip dhcp excluded-address 192.168.20.201 192.168.20.254
+ip dhcp excluded-address 192.168.30.1 192.168.30.49
+ip dhcp excluded-address 192.168.30.201 192.168.30.254
+!
+ip dhcp pool STAFF-VLAN10
+ network 192.168.10.0 255.255.255.0
+ default-router 192.168.10.1
+ dns-server 192.168.20.10
+ domain-name office.local
+!
+ip dhcp pool IT-VLAN20
+ network 192.168.20.0 255.255.255.0
+ default-router 192.168.20.1
+ dns-server 192.168.20.10
+ domain-name office.local
+!
+ip dhcp pool GUEST-VLAN30
+ network 192.168.30.0 255.255.255.0
+ default-router 192.168.30.1
+ dns-server 192.168.20.10
+ domain-name office.local
+!
+! Guests may use DNS and HTTP on Server0 only, but not Staff or IT hosts.
+ip access-list extended GUEST-IN
+ remark Allow guest DNS lookups to Server0 only
+ permit udp 192.168.30.0 0.0.0.255 host 192.168.20.10 eq domain
+ permit tcp 192.168.30.0 0.0.0.255 host 192.168.20.10 eq domain
+ remark Allow guest HTTP to Server0 only
+ permit tcp 192.168.30.0 0.0.0.255 host 192.168.20.10 eq www
+ remark Isolate Guest from Staff and the rest of IT/services subnet
+ deny ip 192.168.30.0 0.0.0.255 192.168.10.0 0.0.0.255
+ deny ip 192.168.30.0 0.0.0.255 192.168.20.0 0.0.0.255
+ remark Permit other destinations if a routed upstream network is later added
+ permit ip 192.168.30.0 0.0.0.255 any
+!
+line console 0
+ logging synchronous
+ exec-timeout 10 0
+ password LabConsole2026
+ login
+!
+line vty 0 4
+ logging synchronous
+ exec-timeout 10 0
+ login local
+ transport input ssh
+!
+end
+write memory
